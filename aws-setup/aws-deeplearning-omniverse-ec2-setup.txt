@@ -1,0 +1,202 @@
+#Root Partition has to over 30gb
+
+sudo su
+
+# change the su passwword
+passwd
+# change ubuntu account password
+passwd ubuntu
+
+apt-get update -y && apt-get upgrade -y linux-aws && \
+reboot
+
+# setup graphics desktop
+
+export DEBIAN_FRONTEND=noninteractive
+
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin && \
+mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
+apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
+add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" && \
+apt-get update && apt-get -y purge cuda && apt-get -y purge nvidia-* && apt-get -y autoremove && \
+apt-get -y install cuda-11-8 && \
+apt-get -y install libcudnn8=8.6.0.163-1+cuda11.8 && \
+apt-get -y install libcudnn8-dev=8.6.0.163-1+cuda11.8 && \
+echo "export PATH=/usr/local/cuda-11.8/bin:$PATH" >> /home/ubuntu/.bashrc && \
+echo "export LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH" >> /home/ubuntu/.bashrc && \
+reboot
+
+# setup software repo for docker
+
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+
+apt-key fingerprint 0EBFCD88
+
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+
+
+# setup software repo for fsx-lustre client
+
+wget -O - https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-ubuntu-public-key.asc | apt-key add -
+
+
+# add key for NICE-DCV
+
+wget https://d1uj6qtbmh3dt5.cloudfront.net/NICE-GPG-KEY
+
+gpg --import NICE-GPG-KEY
+
+
+# add  visual code repository
+
+wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | apt-key add -
+
+add-apt-repository "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main"
+
+
+# update and install required packages
+
+apt-get update
+
+apt-get -y install git tar
+
+apt-get -y install apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+
+
+apt-get -y install docker-ce docker-ce-cli containerd.io      
+usermod -aG docker ubuntu
+
+curl -s -L https://nvidia.github.io/nvidia-container-runtime/gpgkey |  apt-key add - 
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-container-runtime/$distribution/nvidia-container-runtime.list | \
+tee /etc/apt/sources.list.d/nvidia-container-runtime.list
+
+apt-get update
+apt-get -y install nvidia-container-toolkit
+
+apt-get -y install tzdata
+
+apt-get -y install keyboard-configuration
+
+apt-get -y install gnupg2
+
+apt-get -y install lsb-core 
+
+apt-get -y install libopenmpi-dev 
+
+apt-get -y install protobuf-compiler
+
+# install DCV server
+
+echo "install DCV server..."
+
+apt-get -y install ubuntu-desktop
+
+bash -c 'echo "deb https://fsx-lustre-client-repo.s3.amazonaws.com/ubuntu jammy main" > /etc/apt/sources.list.d/fsxlustreclientrepo.list && apt-get update'
+
+apt-get -y install gdm3
+apt-get -y upgrade || echo "ignoring upgrade error"
+echo "/usr/sbin/gdm3" > /etc/X11/default-display-manager
+dpkg-reconfigure gdm3
+sed -i -e "s/#WaylandEnable=false/WaylandEnable=false/g" /etc/gdm3/custom.conf
+systemctl restart gdm3
+
+apt-get -y install mesa-utils
+if [[ -x "$(command -v nvidia-xconfig)" ]] && [[ -x "$(command -v nvidia-smi)" ]]
+then
+nvidia-xconfig --preserve-busid --enable-all-gpus
+fi
+
+#restart X server
+echo "restart X-server"
+systemctl set-default graphical.target
+systemctl isolate graphical.target
+
+wget https://d1uj6qtbmh3dt5.cloudfront.net/nice-dcv-ubuntu2204-x86_64.tgz
+tar -xvzf nice-dcv-ubuntu2204-x86_64.tgz
+cd nice-dcv-2023.0-14852-ubuntu2204-x86_64
+apt-get -y install ./nice-dcv-server_2023.0.14852-1_amd64.ubuntu2204.deb/
+reboot
+
+
+#restart X server
+
+systemctl set-default graphical.target
+
+systemctl isolate graphical.target
+
+
+# Create DCV server configuration file
+
+[[ -d /opt/dcv-session-store ]] || mkdir /opt/dcv-session-store
+
+echo "[license]" >> dcv.conf
+
+echo "[log]" >> dcv.conf
+
+echo "[session-management]" >> dcv.conf
+
+echo "create-session = true" >> dcv.conf
+
+echo "[session-management/defaults]" >> dcv.conf
+
+echo "[session-management/automatic-console-session]" >> dcv.conf
+
+echo "owner=ubuntu" >> dcv.conf
+
+echo "storage-root=\"/opt/dcv-session-store/\"" >> dcv.conf
+
+echo "[display]" >> dcv.conf
+
+echo "[connectivity]" >> dcv.conf
+
+echo "[security]" >> dcv.conf
+
+echo "authentication=\"system\"" >> dcv.conf
+
+echo "[clipboard]" >> dcv.conf
+
+echo "primary-selection-copy=true" >> dcv.conf
+
+echo "primary-selection-paste=true" >> dcv.conf
+
+mv dcv.conf /etc/dcv/dcv.conf
+
+
+# Create DCV session permissions files
+
+rm -f /home/ubuntu/dcv.perms
+
+echo "[permissions]" >> /home/ubuntu/dcv.perms
+
+echo "%owner% allow builtin" >> /home/ubuntu/dcv.perms
+
+
+# Enable DCV server
+
+systemctl enable dcvserver
+
+systemctl restart dcvserver
+
+
+echo "install DCV server complete"
+
+
+# Install Chrome browser
+
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+
+dpkg -i ./google-chrome-stable_current_amd64.deb
+
+# Omniverse Install
+
+#
+sudo add-apt-repository ppa:appimagelauncher-team/stable
+sudo apt update
+sudo apt install appimagelauncher
+
+# Download Omniverse AppImage & Run
