@@ -1,4 +1,5 @@
-#Root Partition has to over 50gb
+# OS : Ubuntu 22.04 LTS 
+# EFS : Root Partition has to over 50gb
 
 sudo su
 
