@@ -1,4 +1,4 @@
-#Root Partition has to over 30gb
+#Root Partition has to over 50gb
 
 sudo su
 
@@ -200,3 +200,4 @@ sudo apt update
 sudo apt install appimagelauncher
 
 # Download Omniverse AppImage & Run
+
